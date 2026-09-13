@@ -23,6 +23,7 @@ jobs:
       - name: Run tests
         run: npm test
       - name: Run build
+        if: ${{ github.event_name == 'push' }}
         run: npm run build
       - name: Install Playwright Browsers
         run: npx playwright install
