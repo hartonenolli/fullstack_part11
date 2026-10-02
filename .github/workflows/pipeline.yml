@@ -23,19 +23,21 @@ jobs:
       - name: Run tests
         run: npm test
       - name: Run build
-        if: ${{ github.event_name == 'push' }}
-        run: npm run build
+        if: ${{ github.event_name == 'push' && !contains(join(github.event.commits.*.message, ' '), '#skip') }}
+        env:
+          COMMIT_MESSAGES: ${{ toJson(github.event.commits.*.message) }}
+        run: echo "$COMMIT_MESSAGES" && npm run build
       - name: Install Playwright Browsers
         run: npx playwright install
       - name: Run end-to-end tests
         run: npm run test:e2e
   tag_release:
     needs: [simple_deployment_pipeline]
+    if: ${{ github.event_name == 'push' && !contains(join(github.event.commits.*.message, ' '), '#skip') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       - name: Bump version and push tag
-        if: ${{ github.event_name == 'push' }}
         uses: anothrNick/github-tag-action@1.75.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
