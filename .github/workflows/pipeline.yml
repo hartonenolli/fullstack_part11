@@ -9,7 +9,7 @@ on:
     types: [opened, synchronize]
 
 jobs:
-  check_style_and_unit_tests:
+  simple_deployment_pipeline:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -24,7 +24,7 @@ jobs:
         run: npm test
 
   end_to_end_tests:
-    needs: [check_style_and_unit_tests]
+    needs: [simple_deployment_pipeline]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -55,17 +55,17 @@ jobs:
         run: echo "$COMMIT_MESSAGES" && npm run build
 
   notify:
-    needs: [check_style_and_unit_tests, end_to_end_tests, build]
+    needs: [simple_deployment_pipeline, end_to_end_tests, build]
     if: ${{ always() && github.event_name == 'push' && !contains(join(github.event.commits.*.message, ' '), '#skip') }}
     runs-on: ubuntu-latest
     steps:
       - name: Notify Discord
-        if: ${{ needs.check_style_and_unit_tests.result == 'success' && needs.build.result == 'success' && needs.end_to_end_tests.result == 'success' }}
+        if: ${{ needs.simple_deployment_pipeline.result == 'success' && needs.build.result == 'success' && needs.end_to_end_tests.result == 'success' }}
         uses: sarisia/actions-status-discord@v1
         with:
           webhook: ${{ secrets.DISCORD_WEBHOOK }}
       - name: Notify Discord on failure
-        if: ${{ needs.check_style_and_unit_tests.result == 'failure' || needs.build.result == 'failure' || needs.end_to_end_tests.result == 'failure' }}
+        if: ${{ needs.simple_deployment_pipeline.result == 'failure' || needs.build.result == 'failure' || needs.end_to_end_tests.result == 'failure' }}
         uses: sarisia/actions-status-discord@v1
         with:
           webhook: ${{ secrets.DISCORD_WEBHOOK }}
