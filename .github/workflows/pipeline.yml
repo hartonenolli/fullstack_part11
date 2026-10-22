@@ -26,7 +26,7 @@ jobs:
         if: ${{ github.event_name == 'push' && !contains(join(github.event.commits.*.message, ' '), '#skip') }}
         env:
           COMMIT_MESSAGES: ${{ toJson(github.event.commits.*.message) }}
-        run: echo "$COMMIT_MESSAGES" && npm run EDITbuildEDIT
+        run: echo "$COMMIT_MESSAGES" && npm run build
       - name: Install Playwright Browsers
         run: npx playwright install
       - name: Run end-to-end tests
