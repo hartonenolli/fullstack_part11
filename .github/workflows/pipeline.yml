@@ -8,6 +8,9 @@ on:
     branches: [main]
     types: [opened, synchronize]
 
+permissions:
+  contents: read
+
 jobs:
   simple_deployment_pipeline:
     runs-on: ubuntu-latest
@@ -16,38 +19,69 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
-      - name: Install dependencies 
-        run: npm install  
-      - name: Check style        
+      - name: Install dependencies
+        run: npm install
+      - name: Check style
         run: npm run eslint
       - name: Run tests
         run: npm test
-      - name: Run build
-        if: ${{ github.event_name == 'push' && !contains(join(github.event.commits.*.message, ' '), '#skip') }}
-        env:
-          COMMIT_MESSAGES: ${{ toJson(github.event.commits.*.message) }}
-        run: echo "$COMMIT_MESSAGES" && npm run build
+
+  end_to_end_tests:
+    needs: [simple_deployment_pipeline]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Install dependencies
+        run: npm install
       - name: Install Playwright Browsers
         run: npx playwright install
       - name: Run end-to-end tests
         run: npm run test:e2e
+
+  build:
+    needs: [end_to_end_tests]
+    if: ${{ github.event_name == 'push' && !contains(join(github.event.commits.*.message, ' '), '#skip') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Install dependencies
+        run: npm install
+      - name: Run build
+        env:
+          COMMIT_MESSAGES: ${{ toJson(github.event.commits.*.message) }}
+        run: echo "$COMMIT_MESSAGES" && npm run build
+
+  notify:
+    needs: [simple_deployment_pipeline, end_to_end_tests, build]
+    if: ${{ always() && github.event_name == 'push' && !contains(join(github.event.commits.*.message, ' '), '#skip') }}
+    runs-on: ubuntu-latest
+    steps:
       - name: Notify Discord
-        if: ${{ success() && github.event_name == 'push' && !contains(join(github.event.commits.*.message, ' '), '#skip') }}
+        if: ${{ needs.simple_deployment_pipeline.result == 'success' && needs.build.result == 'success' && needs.end_to_end_tests.result == 'success' }}
         uses: sarisia/actions-status-discord@v1
         with:
           webhook: ${{ secrets.DISCORD_WEBHOOK }}
       - name: Notify Discord on failure
-        if: ${{ failure() && github.event_name == 'push' && !contains(join(github.event.commits.*.message, ' '), '#skip') }}
+        if: ${{ needs.simple_deployment_pipeline.result == 'failure' || needs.build.result == 'failure' || needs.end_to_end_tests.result == 'failure' }}
         uses: sarisia/actions-status-discord@v1
         with:
           webhook: ${{ secrets.DISCORD_WEBHOOK }}
           status: failure
           color: #EE4B2B
           description: "Failure for commit ${{ github.sha }}."
+
   tag_release:
-    needs: [simple_deployment_pipeline]
+    needs: [build]
     if: ${{ github.event_name == 'push' && !contains(join(github.event.commits.*.message, ' '), '#skip') }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v6
       - name: Bump version and push tag
